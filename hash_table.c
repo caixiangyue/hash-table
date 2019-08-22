@@ -1,4 +1,5 @@
 #include "hash_table.h"
+#include "prime.h"
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -15,15 +16,43 @@ hash_table_item_new(const char *key, const char *value)
     return item;
 }
 
-HashTable*
-hash_table_new()
+static HashTable*
+hash_table_new_sized(int size)
 {
     HashTable *ht = malloc(sizeof(HashTable));
-    ht->size = 53;
+    ht->size = next_prime(size);
     ht->count = 0;
     ht->items = calloc((size_t)ht->size, sizeof(Item*));
 
     return ht;
+}
+
+HashTable*
+hash_table_new()
+{
+    return hash_table_new_sized(HASH_TABLE_INITIAL_BASE_SIZE);
+}
+
+static void
+hash_table_resize(HashTable *ht, int size)
+{
+    HashTable *new_ht = hash_table_new_sized(size);
+
+    for (int i = 0; i < ht->size; ++i) {
+        Item *item = ht->items[i];
+        if (item != NULL && item != &DELETED_ITEM)
+            hash_table_insert(new_ht, item->key, item->value);
+    }
+
+    ht->count = new_ht->count;
+    const int tmp_size = new_ht->size;
+    new_ht->size = ht->size;
+    ht->size = tmp_size;
+    Item **items = new_ht->items;
+    new_ht->items = ht->items;
+    ht->items = items;
+
+    hash_table_free(new_ht);
 }
 
 static void
@@ -75,6 +104,11 @@ hash_table_insert(HashTable *ht, const char *key, const char *value)
 {
     if (key == NULL)
         return;
+    
+    const int load = (ht->count * 100) / ht->size;
+    if (load > 70)
+        hash_table_resize(ht, ht->size * 2);
+
     Item *item = hash_table_item_new(key, value);
     int index = hash_table_get_hash(key, ht->size, 0);
     Item *current_item = ht->items[index];
@@ -83,6 +117,7 @@ hash_table_insert(HashTable *ht, const char *key, const char *value)
         if (strcmp(current_item->key, key) == 0) {
             hash_table_erase(ht, key);
             ht->items[index] = item;
+            ++(ht->count);
             return;
         }
         index = hash_table_get_hash(key, ht->size, i);

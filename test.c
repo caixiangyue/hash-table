@@ -30,6 +30,12 @@ main(void)
     value = hash_table_find(ht, k1);
     assert(is_null(value));
 
+    for (int i = 0; i < HASH_TABLE_INITIAL_BASE_SIZE; ++i) {
+        char str[25];
+        snprintf(str, 7, "test%d", i);
+        hash_table_insert(ht, str, str);
+    }
+    assert(ht->count > HASH_TABLE_INITIAL_BASE_SIZE);
     hash_table_free(ht);
     return 0;
 }
